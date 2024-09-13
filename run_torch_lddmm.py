@@ -8,6 +8,7 @@ import minc.io
 
 import numpy as np
 
+import torch
 
 ### local
 import torch_lddmm
@@ -21,6 +22,12 @@ def parse_args():
     parser.add_argument("t", help="target image")
     parser.add_argument("o", help="output prefix")
 
+    parser.add_argument("--gpu", help="GPU number", type=int, default=0)
+    parser.add_argument("--cpu", help="Run on CPU", action="store_true",default=False)
+    parser.add_argument("--threads", help="Number of threads", type=int, default=0)
+
+
+
     return  parser.parse_args()
 
 def main():
@@ -31,9 +38,18 @@ def main():
     trg_vol,trg_aff = minc.io.load_minc_volume_np(args.t, False, 'float32')
     _,dx,_ = decompose(src_aff)
 
+    if args.cpu:
+        gpu = None
+    else:
+        gpu = args.gpu
+
+    if args.threads>0:
+        torch.set_num_threads(args.threads)
+
     lddmm = torch_lddmm.LDDMM(template=src_vol,target=trg_vol,do_affine=0,do_lddmm=1,
                               a=10,niter=200,epsilon=4e0,
                               sigma=20.0,sigmaR=40.0,optimizer='gdr',dx=dx,
+                              gpu_number=gpu,
                               verbose=0)
     
     # set 100 iterations instead

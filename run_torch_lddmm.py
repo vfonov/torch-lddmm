@@ -57,9 +57,10 @@ def main():
     #deformed_s = lddmm.outputDeformedTemplate()[0]
     (deformed_s,_,_,_) = lddmm.applyThisTransform(src_vol)
 
-    minc.io.save_minc_volume( args.o + '_resampled.mnc',
-        deformed_s[-1].cpu().numpy(), src_aff, 
-        ref_fname=args.s, history=_history)
+    if False:
+        minc.io.save_minc_volume( args.o + '_resampled.mnc',
+            deformed_s[-1].cpu().numpy(), src_aff, 
+            ref_fname=args.s, history=_history)
     
 # execute script
 if __name__ == '__main__':

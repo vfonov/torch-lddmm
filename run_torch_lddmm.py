@@ -26,9 +26,24 @@ def parse_args():
     parser.add_argument("--cpu", help="Run on CPU", action="store_true",default=False)
     parser.add_argument("--threads", help="Number of threads", type=int, default=0)
 
-
-
     return  parser.parse_args()
+
+
+def calculate_jacobian(lddmm,phi0,phi1,phi2):
+    # add identity
+    phi0_,phi1_,phi2_=lddmm.X0+torch.tensor(phi0).to(lddmm.X0.device),lddmm.X1+torch.tensor(phi1).to(lddmm.X0.device),lddmm.X2+torch.tensor(phi2).to(lddmm.X0.device)
+
+    # calculate gradients
+    phi0_0,phi0_1,phi0_2 = lddmm.torch_gradient(phi0_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x,lddmm.grad_divisor_y,lddmm.grad_divisor_z)
+    phi1_0,phi1_1,phi1_2 = lddmm.torch_gradient(phi1_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x,lddmm.grad_divisor_y,lddmm.grad_divisor_z)
+    phi2_0,phi2_1,phi2_2 = lddmm.torch_gradient(phi2_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x,lddmm.grad_divisor_y,lddmm.grad_divisor_z)
+
+    detjac = phi0_0*(phi1_1*phi2_2 - phi1_2*phi2_1)\
+        - phi0_1*(phi1_0*phi2_2 - phi1_2*phi2_0)\
+        + phi0_2*(phi1_0*phi2_1 - phi1_1*phi2_0)
+
+    return detjac
+
 
 def main():
     _history=minc.io.format_history(sys.argv)
@@ -47,20 +62,28 @@ def main():
         torch.set_num_threads(args.threads)
 
     lddmm = torch_lddmm.LDDMM(template=src_vol,target=trg_vol,do_affine=0,do_lddmm=1,
-                              a=10,niter=200,epsilon=4e0,
-                              sigma=20.0,sigmaR=40.0,optimizer='gdr',dx=dx,
+                              a=10,niter=200,epsilon=1e-3,
+                              sigma=1.0,sigmaR=1.0,optimizer='gdr',dx=dx,
                               gpu_number=gpu,
                               verbose=0)
     
-    # set 100 iterations instead
-    lddmm.setParams('niter',400)
-    # run computation
+    lddmm.setParams('a',10)
+    lddmm.setParams('niter',200)
+    lddmm.setParams('sigma',10)
+    lddmm.setParams('sigmaR',10)
     lddmm.run()
 
-    # now shrink the lddmm kernel size to 7
-    lddmm.setParams('a',7)
-    lddmm.setParams('niter',400)
+    lddmm.setParams('a',5)
+    lddmm.setParams('niter', 400)
+    lddmm.setParams('sigma', 2)
+    lddmm.setParams('sigmaR',2)
     lddmm.run()
+
+    # lddmm.setParams('a', 5)
+    # lddmm.setParams('niter', 400)
+    # lddmm.setParams('sigma', 1)
+    # lddmm.setParams('sigmaR',1)
+    # lddmm.run()
 
 
     (phi0,phi1,phi2) = lddmm.computeThisDisplacement() # output resultant displacement field
@@ -70,13 +93,17 @@ def main():
     minc.io.save_minc_volume( args.o + '_grid_0.mnc',
         grid, src_aff, ref_fname=args.s, history=_history)
 
-    #deformed_s = lddmm.outputDeformedTemplate()[0]
     (deformed_s,_,_,_) = lddmm.applyThisTransform(src_vol)
+    minc.io.save_minc_volume( args.o + '_resampled.mnc',
+        deformed_s[-1].cpu().numpy(), src_aff, 
+        ref_fname=args.s, history=_history)
+    
+    # calculate the jacobian 
+    jac = calculate_jacobian(lddmm,phi0,phi1,phi2)
+    minc.io.save_minc_volume( args.o + '_J.mnc',
+        jac.cpu().numpy(), src_aff, 
+        ref_fname=args.s, history=_history)
 
-    if False:
-        minc.io.save_minc_volume( args.o + '_resampled.mnc',
-            deformed_s[-1].cpu().numpy(), src_aff, 
-            ref_fname=args.s, history=_history)
     
 # execute script
 if __name__ == '__main__':

@@ -87,47 +87,51 @@ def run_lddmm(src, trg, out, out_jac=None,gpu=0):
             ref_fname=src)
 
 def main():
-    args=parse_args()
+    #args=parse_args()
+    ss="3T"
+    inv=True
 
     out_pfx="out_20240408"
+    out_dbg="lddm_test"
     
     model="adni_model_3d_v2/model_t1w_r.mnc"
 
-    df=(pd.read_csv(f"ADNI_{args.ss}_v2.lst", names=['subject','visit','t1w','t2w','pdw','flair'], header=0, dtype=str)
-        .assign(fld=args.ss)
+    df=(pd.read_csv(f"ADNI_{ss}_v2.lst", names=['subject','visit','t1w','t2w','pdw','flair'], header=0, dtype=str)
+        .assign(fld=ss)
         .assign(pfx=lambda x: out_pfx+os.sep+x.fld+os.sep+x.subject+os.sep+x.visit)
         .assign(stx2_t1      =lambda x: x.pfx+os.sep+'stx2/stx2_'+x.subject+'_'+x.visit+'_t1.mnc')
 
-        .assign(lddm_nl      =lambda x: x.pfx+os.sep+'nl/nl_lddm_'+x.subject+'_'+x.visit+'_grid_0.mnc')
-        .assign(lddm_nl_inv  =lambda x: x.pfx+os.sep+'nl/nl_lddm_'+x.subject+'_'+x.visit+'_inverse_grid_0.mnc')
+        .assign(lddm_nl      =lambda x: out_dbg+os.sep+'nl/nl_lddm_'+x.subject+'_'+x.visit+'_grid_0.mnc')
+        .assign(lddm_nl_inv  =lambda x: out_dbg+os.sep+'nl/nl_lddm_'+x.subject+'_'+x.visit+'_inverse_grid_0.mnc')
 
-        .assign(lddm_j      =lambda x: x.pfx+os.sep+'nl/nl_lddm_'+x.subject+'_'+x.visit+'_grid_j.mnc')
-        .assign(lddm_j_inv  =lambda x: x.pfx+os.sep+'nl/nl_lddm_'+x.subject+'_'+x.visit+'_inverse_grid_j.mnc')
+        .assign(lddm_j      =lambda x: out_dbg+os.sep+'nl/nl_lddm_'+x.subject+'_'+x.visit+'_grid_j.mnc')
+        .assign(lddm_j_inv  =lambda x: out_dbg+os.sep+'nl/nl_lddm_'+x.subject+'_'+x.visit+'_inverse_grid_j.mnc')
 
-        .assign(t1_exists= lambda x: x.agg(lambda y: os.path.exists(str(y.stx2_t1)),axis=1))
-        .query("t1_exists")
+        #.assign(t1_exists= lambda x: x.agg(lambda y: os.path.exists(str(y.stx2_t1)),axis=1))
+        #.query("t1_exists")
+        .query("subject=='041_S_4877'")
         )
 
     print(df.shape)
     N_slices=8
 
-    n=len(df)//N_slices
-    d=len(df)-n*N_slices
+    #n=len(df)//N_slices
+    #d=len(df)-n*N_slices
 
-    df=df.iloc[args.slice*n:(args.slice+1)*n+(d if args.slice==N_slices-1 else 0)]
+    #df=df.iloc[args.slice*n:(args.slice+1)*n+(d if args.slice==N_slices-1 else 0)]
     print(f"{df.shape=}")
 
     for i in tqdm.tqdm(range(df.shape[0])):
         row=df.iloc[i]
-        if args.inv:
+        if inv:
             if not os.path.exists(row.lddm_nl_inv):
-                run_lddmm( model, row.stx2_t1, row.lddm_nl_inv, gpu=args.slice, out_jac=row.lddm_j_inv)
+                run_lddmm( model, row.stx2_t1, row.lddm_nl_inv, out_jac=row.lddm_j_inv)
         else:
             if not os.path.exists(row.lddm_nl):
-                run_lddmm(row.stx2_t1, model, row.lddm_nl, gpu=args.slice, out_jac=row.lddm_j)
+                run_lddmm(row.stx2_t1, model, row.lddm_nl, out_jac=row.lddm_j)
         #break
 
-    df.to_csv(f"{out_pfx}/{args.ss}/lddm_{args.slice}_{args.inv}.csv",index=False)
+    df.to_csv(f"{out_dbg}/lddm_{ss}.csv",index=False)
     
 # execute script
 if __name__ == '__main__':

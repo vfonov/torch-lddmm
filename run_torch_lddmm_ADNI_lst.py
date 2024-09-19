@@ -128,10 +128,10 @@ def main():
         row=df.iloc[i]
 
         if args.inv: 
-            if not os.path.exists(row.lddm_nl): # this will calculate mapping from the model to the subject
+            if not os.path.exists(row.lddm_nl_inv): # this will calculate mapping from the model to the subject
                 run_lddmm(row.stx2_t1, model, row.lddm_nl_inv, gpu=gpu, out_jac=row.lddm_j_inv)
         else:
-            if not os.path.exists(row.lddm_nl_inv): # WARNING, the order is actually reversed already , this will calculate mapping from the subject to model
+            if not os.path.exists(row.lddm_nl): # WARNING, the order is actually reversed already , this will calculate mapping from the subject to model
                 run_lddmm( model, row.stx2_t1, row.lddm_nl, gpu=gpu, out_jac=row.lddm_j)
 
     df.to_csv(f"{out_pfx}/{args.ss}/lddm_{args.slice}_{args.inv}.csv",index=False)

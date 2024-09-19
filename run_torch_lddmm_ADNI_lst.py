@@ -21,13 +21,11 @@ def parse_args():
         epilog="""
 """ )
     
-    # parser.add_argument("l", help="source list")
-    # parser.add_argument("t", help="target image")
-    # parser.add_argument("o", help="output lst")
-
     parser.add_argument("ss", help="subset: 15T 3T")
     parser.add_argument("slice", help="slice number", type=int)
+    parser.add_argument("total", help="total slice number", type=int)
     parser.add_argument("--inv", help="inverse", action="store_true",default=False)
+    parser.add_argument("--gpu", help="GPU number", default=None, type=int)
 
 
     return  parser.parse_args()
@@ -67,23 +65,19 @@ def run_lddmm(src, trg, out, out_jac=None,gpu=0):
     lddmm.setParams('epsilon',1e-2)
     lddmm.run()
 
-    if False:
-        lddmm.setParams('a',5)
-        lddmm.setParams('epsilon',1e-3)
-        lddmm.setParams('niter', 200)
-        lddmm.setParams('sigma', 2)
-        lddmm.setParams('sigmaR',2)
-        lddmm.run()
+    lddmm.setParams('a',5)
+    lddmm.setParams('epsilon',1e-3)
+    lddmm.setParams('niter', 200)
+    lddmm.setParams('sigma', 2)
+    lddmm.setParams('sigmaR',2)
+    lddmm.run()
 
-    if False:
-        lddmm.setParams('a',2.5)
-        lddmm.setParams('niter',  400)
-        lddmm.setParams('sigma',  1.2)
-        lddmm.setParams('sigmaR', 1.2)
-        lddmm.setParams('epsilon',1e-3)
-        lddmm.run()
-
-
+    lddmm.setParams('a',2.5)
+    lddmm.setParams('niter',  200)
+    lddmm.setParams('sigma',  1.2)
+    lddmm.setParams('sigmaR', 1.2)
+    lddmm.setParams('epsilon',1e-3)
+    lddmm.run()
 
     (phi0,phi1,phi2) = lddmm.computeThisDisplacement() # output resultant displacement field
 
@@ -121,7 +115,8 @@ def main():
         )
 
     print(df.shape)
-    N_slices=8
+    N_slices=args.total
+    gpu=args.gpu if args.gpu is not None else args.slice
 
     n=len(df)//N_slices
     d=len(df)-n*N_slices
@@ -132,13 +127,12 @@ def main():
     for i in tqdm.tqdm(range(df.shape[0])):
         row=df.iloc[i]
 
-        if args.inv: # WARNING, the order is actually reversed already , this will calculate mapping from the subject to model
-            if not os.path.exists(row.lddm_nl_inv): 
-                run_lddmm( model, row.stx2_t1, row.lddm_nl, gpu=args.slice, out_jac=row.lddm_j_inv)
-        else:
+        if args.inv: 
             if not os.path.exists(row.lddm_nl): # this will calculate mapping from the model to the subject
-                run_lddmm(row.stx2_t1, model, row.lddm_nl_inv, gpu=args.slice, out_jac=row.lddm_j)
-        #break
+                run_lddmm(row.stx2_t1, model, row.lddm_nl_inv, gpu=gpu, out_jac=row.lddm_j_inv)
+        else:
+            if not os.path.exists(row.lddm_nl_inv): # WARNING, the order is actually reversed already , this will calculate mapping from the subject to model
+                run_lddmm( model, row.stx2_t1, row.lddm_nl, gpu=gpu, out_jac=row.lddm_j)
 
     df.to_csv(f"{out_pfx}/{args.ss}/lddm_{args.slice}_{args.inv}.csv",index=False)
     

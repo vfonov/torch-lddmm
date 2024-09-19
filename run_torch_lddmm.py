@@ -97,14 +97,15 @@ def main():
     lddmm.run()
     print(f"---  {(time.time() - start_time)} sec ---" )
 
-    start_time = time.time()
-    lddmm.setParams('a',1.5)
-    lddmm.setParams('niter',  200)
-    lddmm.setParams('sigma',  1.1)
-    lddmm.setParams('sigmaR', 1.1)
-    lddmm.setParams('epsilon',1e-3)
-    lddmm.run()
-    print(f"---  {(time.time() - start_time)} sec ---" )
+    if False: # becomes unstable (?)
+        start_time = time.time()
+        lddmm.setParams('a',1.5)
+        lddmm.setParams('niter',  200)
+        lddmm.setParams('sigma',  1.1)
+        lddmm.setParams('sigmaR', 1.1)
+        lddmm.setParams('epsilon',1e-3)
+        lddmm.run()
+        print(f"---  {(time.time() - start_time)} sec ---" )
 
 
     (phi0,phi1,phi2) = lddmm.computeThisDisplacement() # output resultant displacement field

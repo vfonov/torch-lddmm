@@ -61,16 +61,28 @@ def run_lddmm(src, trg, out, out_jac=None,gpu=0):
                               verbose=0)
     
     lddmm.setParams('a',10)
-    lddmm.setParams('niter', 200)
-    lddmm.setParams('sigma', 10)
+    lddmm.setParams('niter',400)
+    lddmm.setParams('sigma',10)
     lddmm.setParams('sigmaR',10)
+    lddmm.setParams('epsilon',1e-2)
     lddmm.run()
 
-    lddmm.setParams('a',5)
-    lddmm.setParams('niter', 400)
-    lddmm.setParams('sigma', 2)
-    lddmm.setParams('sigmaR',2)
-    lddmm.run()
+    if False:
+        lddmm.setParams('a',5)
+        lddmm.setParams('epsilon',1e-3)
+        lddmm.setParams('niter', 200)
+        lddmm.setParams('sigma', 2)
+        lddmm.setParams('sigmaR',2)
+        lddmm.run()
+
+    if False:
+        lddmm.setParams('a',2.5)
+        lddmm.setParams('niter',  400)
+        lddmm.setParams('sigma',  1.2)
+        lddmm.setParams('sigmaR', 1.2)
+        lddmm.setParams('epsilon',1e-3)
+        lddmm.run()
+
 
 
     (phi0,phi1,phi2) = lddmm.computeThisDisplacement() # output resultant displacement field
@@ -119,12 +131,13 @@ def main():
 
     for i in tqdm.tqdm(range(df.shape[0])):
         row=df.iloc[i]
-        if args.inv:
-            if not os.path.exists(row.lddm_nl_inv):
-                run_lddmm( model, row.stx2_t1, row.lddm_nl_inv, gpu=args.slice, out_jac=row.lddm_j_inv)
+
+        if args.inv: # WARNING, the order is actually reversed already , this will calculate mapping from the subject to model
+            if not os.path.exists(row.lddm_nl_inv): 
+                run_lddmm( model, row.stx2_t1, row.lddm_nl, gpu=args.slice, out_jac=row.lddm_j_inv)
         else:
-            if not os.path.exists(row.lddm_nl):
-                run_lddmm(row.stx2_t1, model, row.lddm_nl, gpu=args.slice, out_jac=row.lddm_j)
+            if not os.path.exists(row.lddm_nl): # this will calculate mapping from the model to the subject
+                run_lddmm(row.stx2_t1, model, row.lddm_nl_inv, gpu=args.slice, out_jac=row.lddm_j)
         #break
 
     df.to_csv(f"{out_pfx}/{args.ss}/lddm_{args.slice}_{args.inv}.csv",index=False)

@@ -1180,7 +1180,7 @@ class LDDMM:
             else:
                 It[t+1] = torch.squeeze(grid_sample(It[0].unsqueeze(0).unsqueeze(0),torch.stack((phiinv2_gpu.type(dtype).to(device=self.params['cuda'])/(self.nx[2]*self.dx[2]-self.dx[2])*2,phiinv1_gpu.type(dtype).to(device=self.params['cuda'])/(self.nx[1]*self.dx[1]-self.dx[1])*2,phiinv0_gpu.type(dtype).to(device=self.params['cuda'])/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='zeros',mode=interpmode))
         
-        return It,phiinv0_gpu, phiinv1_gpu, phiinv2_gpu
+        return It, phiinv0_gpu, phiinv1_gpu, phiinv2_gpu
     
     # apply current transform to new image
     def applyThisTransform2d(self, I, interpmode='bilinear',dtype='torch.FloatTensor'):

@@ -12,6 +12,7 @@ import torch
 
 ### local
 import torch_lddmm
+import time
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Launch pytorch lddmm registration",
@@ -31,16 +32,18 @@ def parse_args():
 
 def calculate_jacobian(lddmm,phi0,phi1,phi2):
     # add identity
-    phi0_,phi1_,phi2_=lddmm.X0+torch.tensor(phi0).to(lddmm.X0.device),lddmm.X1+torch.tensor(phi1).to(lddmm.X0.device),lddmm.X2+torch.tensor(phi2).to(lddmm.X0.device)
+    phi0_=lddmm.X0+torch.tensor(phi0).to(lddmm.X0.device)
+    phi1_=lddmm.X1+torch.tensor(phi1).to(lddmm.X0.device)
+    phi2_=lddmm.X2+torch.tensor(phi2).to(lddmm.X0.device)
 
     # calculate gradients
-    phi0_0,phi0_1,phi0_2 = lddmm.torch_gradient(phi0_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x,lddmm.grad_divisor_y,lddmm.grad_divisor_z)
-    phi1_0,phi1_1,phi1_2 = lddmm.torch_gradient(phi1_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x,lddmm.grad_divisor_y,lddmm.grad_divisor_z)
-    phi2_0,phi2_1,phi2_2 = lddmm.torch_gradient(phi2_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x,lddmm.grad_divisor_y,lddmm.grad_divisor_z)
+    phi0_0,phi0_1,phi0_2 = lddmm.torch_gradient(phi0_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x, lddmm.grad_divisor_y, lddmm.grad_divisor_z)
+    phi1_0,phi1_1,phi1_2 = lddmm.torch_gradient(phi1_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x ,lddmm.grad_divisor_y, lddmm.grad_divisor_z)
+    phi2_0,phi2_1,phi2_2 = lddmm.torch_gradient(phi2_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x, lddmm.grad_divisor_y, lddmm.grad_divisor_z)
 
     detjac = phi0_0*(phi1_1*phi2_2 - phi1_2*phi2_1)\
-        - phi0_1*(phi1_0*phi2_2 - phi1_2*phi2_0)\
-        + phi0_2*(phi1_0*phi2_1 - phi1_1*phi2_0)
+           - phi0_1*(phi1_0*phi2_2 - phi1_2*phi2_0)\
+           + phi0_2*(phi1_0*phi2_1 - phi1_1*phi2_0)
 
     return detjac
 
@@ -66,24 +69,42 @@ def main():
                               sigma=1.0,sigmaR=1.0,optimizer='gdr',dx=dx,
                               gpu_number=gpu,
                               verbose=0)
-    
+
+    start_time = time.time()
     lddmm.setParams('a',10)
-    lddmm.setParams('niter',200)
+    lddmm.setParams('niter',400)
     lddmm.setParams('sigma',10)
     lddmm.setParams('sigmaR',10)
+    lddmm.setParams('epsilon',1e-2)
     lddmm.run()
+    print(f"---  {(time.time() - start_time)} sec ---" )
 
+    start_time = time.time()
     lddmm.setParams('a',5)
-    lddmm.setParams('niter', 400)
+    lddmm.setParams('epsilon',1e-3)
+    lddmm.setParams('niter', 200)
     lddmm.setParams('sigma', 2)
     lddmm.setParams('sigmaR',2)
     lddmm.run()
+    print(f"---  {(time.time() - start_time)} sec ---" )
 
-    # lddmm.setParams('a', 5)
-    # lddmm.setParams('niter', 400)
-    # lddmm.setParams('sigma', 1)
-    # lddmm.setParams('sigmaR',1)
-    # lddmm.run()
+    start_time = time.time()
+    lddmm.setParams('a',2.5)
+    lddmm.setParams('niter',  200)
+    lddmm.setParams('sigma',  1.2)
+    lddmm.setParams('sigmaR', 1.2)
+    lddmm.setParams('epsilon',1e-3)
+    lddmm.run()
+    print(f"---  {(time.time() - start_time)} sec ---" )
+
+    start_time = time.time()
+    lddmm.setParams('a',1.5)
+    lddmm.setParams('niter',  200)
+    lddmm.setParams('sigma',  1.1)
+    lddmm.setParams('sigmaR', 1.1)
+    lddmm.setParams('epsilon',1e-3)
+    lddmm.run()
+    print(f"---  {(time.time() - start_time)} sec ---" )
 
 
     (phi0,phi1,phi2) = lddmm.computeThisDisplacement() # output resultant displacement field
@@ -99,9 +120,9 @@ def main():
         ref_fname=args.s, history=_history)
     
     # calculate the jacobian 
-    jac = calculate_jacobian(lddmm,phi0,phi1,phi2)
+    jac = calculate_jacobian(lddmm, phi0, phi1, phi2)
     minc.io.save_minc_volume( args.o + '_J.mnc',
-        jac.cpu().numpy(), src_aff, 
+        jac.cpu().numpy(), src_aff,
         ref_fname=args.s, history=_history)
 
     

@@ -1153,6 +1153,29 @@ class LDDMM:
         phiinv1_gpu -= self.X1
         phiinv2_gpu -= self.X2
         return phiinv0_gpu.cpu().numpy(),phiinv1_gpu.cpu().numpy(),phiinv2_gpu.cpu().numpy()
+    
+    # compute inverse displacement field
+    def computeInversedDisplacement(self,interpmode='bilinear'):
+        phi0_gpu = self.X0.clone()
+        phi1_gpu = self.X1.clone()
+        phi2_gpu = self.X2.clone()
+        # TODO: evaluate memory vs speed for precomputing Xs, Ys, Zs
+        for t in range(self.params['nt']):
+            # update phi using method of characteristics (note "+" because we are integrating backward)
+            if self.params['do_lddmm'] == 1 or hasattr(self,'vt0'):
+                phi0_gpu = torch.squeeze(grid_sample((phi0_gpu-self.X0).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X0+self.vt0[t]*self.dt)
+                phi1_gpu = torch.squeeze(grid_sample((phi1_gpu-self.X1).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X1+self.vt1[t]*self.dt)
+                phi2_gpu = torch.squeeze(grid_sample((phi2_gpu-self.X2).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X2+self.vt2[t]*self.dt)
+
+
+            if t == self.params['nt']-1 and (self.params['do_affine'] > 0  or (hasattr(self, 'affineA') and not torch.all(torch.eq(self.affineA,torch.tensor(np.eye(4)).type(self.params['dtype']).to(device=self.params['cuda']))) ) ): # run this if do_affine == 1 or affineA exists and isn't identity
+                phi0_gpu,phi1_gpu,phi2_gpu = self.forwardDeformationAffineVectorized(self.affineA,phi0_gpu,phi1_gpu,phi2_gpu)
+
+        phi0_gpu -= self.X0
+        phi1_gpu -= self.X1
+        phi2_gpu -= self.X2
+        return phi0_gpu.cpu().numpy(),phi1_gpu.cpu().numpy(),phi2_gpu.cpu().numpy()
+
 
     # apply current transform to new image
     def applyThisTransform(self, I, interpmode='bilinear',dtype='torch.FloatTensor'):
@@ -1172,6 +1195,7 @@ class LDDMM:
                 phiinv2_gpu = torch.squeeze(grid_sample((phiinv2_gpu-self.X2).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2-self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1-self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0-self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X2-self.vt2[t]*self.dt)
             
             if t == self.params['nt']-1 and (self.params['do_affine'] > 0  or (hasattr(self, 'affineA') and not torch.all(torch.eq(self.affineA,torch.tensor(np.eye(4)).type(self.params['dtype']).to(device=self.params['cuda']))) ) ): # run this if do_affine == 1 or affineA exists and isn't identity
+                # VF: Check if this is correct! Maybe should invert the affine ?
                 phiinv0_gpu,phiinv1_gpu,phiinv2_gpu = self.forwardDeformationAffineVectorized(self.affineA,phiinv0_gpu,phiinv1_gpu,phiinv2_gpu)
             
             # deform the image
@@ -1182,6 +1206,46 @@ class LDDMM:
         
         return It, phiinv0_gpu, phiinv1_gpu, phiinv2_gpu
     
+    # apply forward transform to target image and return forward displacement field (phi)
+    def applyThisTransformBack(self, I, interpmode='bilinear',dtype='torch.FloatTensor'):
+        It = []
+        for i in range(self.params['nt']+1):
+            It.append(torch.tensor(I).type(dtype).to(device=self.params['cuda']))
+
+
+        phi0_gpu = self.X0.clone()
+        phi1_gpu = self.X1.clone()
+        phi2_gpu = self.X2.clone()
+        # TODO: evaluate memory vs speed for precomputing Xs, Ys, Zs
+        for t in range(self.params['nt']):
+            # update phi using method of characteristics (note "+" because we are integrating backward)
+            if self.params['do_lddmm'] == 1 or hasattr(self,'vt0'):
+                phi0_gpu = torch.squeeze(grid_sample((phi0_gpu-self.X0).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X0+self.vt0[t]*self.dt)
+                phi1_gpu = torch.squeeze(grid_sample((phi1_gpu-self.X1).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X1+self.vt1[t]*self.dt)
+                phi2_gpu = torch.squeeze(grid_sample((phi2_gpu-self.X2).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X2+self.vt2[t]*self.dt)
+
+
+            if t == self.params['nt']-1 and (self.params['do_affine'] > 0  or (hasattr(self, 'affineA') and not torch.all(torch.eq(self.affineA,torch.tensor(np.eye(4)).type(self.params['dtype']).to(device=self.params['cuda']))) ) ): # run this if do_affine == 1 or affineA exists and isn't identity
+                # VF: Check if this is correct! Maybe should invert the affine ?
+                phi0_gpu,phi1_gpu,phi2_gpu = self.forwardDeformationAffineVectorized(self.affineA,phi0_gpu,phi1_gpu,phi2_gpu)
+
+
+            # deform the image
+            if self.params['v_scale'] != 1.0:
+                It[t+1] = torch.squeeze(grid_sample(It[0].unsqueeze(0).unsqueeze(0),torch.stack((torch.squeeze(torch.nn.functional.interpolate(phi2_gpu.unsqueeze(0).unsqueeze(0),size=(self.nx[0],self.nx[1],self.nx[2]),mode='trilinear',align_corners=True)).type(dtype).to(device=self.params['cuda'])/(self.nx[2]*self.dx[2]-self.dx[2])*2,torch.squeeze(torch.nn.functional.interpolate(phi1_gpu.unsqueeze(0).unsqueeze(0),size=(self.nx[0],self.nx[1],self.nx[2]),mode='trilinear',align_corners=True)).type(dtype).to(device=self.params['cuda'])/(self.nx[1]*self.dx[1]-self.dx[1])*2,torch.squeeze(torch.nn.functional.interpolate(phi0_gpu.unsqueeze(0).unsqueeze(0),size=(self.nx[0],self.nx[1],self.nx[2]),mode='trilinear',align_corners=True)).type(dtype).to(device=self.params['cuda'])/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='zeros',mode=interpmode))
+            else:
+                It[t+1] = torch.squeeze(grid_sample(It[0].unsqueeze(0).unsqueeze(0),torch.stack((phi2_gpu.type(dtype).to(device=self.params['cuda'])/(self.nx[2]*self.dx[2]-self.dx[2])*2,phi1_gpu.type(dtype).to(device=self.params['cuda'])/(self.nx[1]*self.dx[1]-self.dx[1])*2,phi0_gpu.type(dtype).to(device=self.params['cuda'])/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='zeros',mode=interpmode))
+
+
+        phi0_gpu -= self.X0
+        phi1_gpu -= self.X1
+        phi2_gpu -= self.X2
+
+
+        return It,phi0_gpu, phi1_gpu, phi2_gpu
+
+
+
     # apply current transform to new image
     def applyThisTransform2d(self, I, interpmode='bilinear',dtype='torch.FloatTensor'):
         It = []

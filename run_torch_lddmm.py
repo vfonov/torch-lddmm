@@ -109,11 +109,16 @@ def main():
 
 
     (phi0,phi1,phi2) = lddmm.computeThisDisplacement() # output resultant displacement field
+    (phi0i,phi1i,phi2i) = lddmm.computeInversedDisplacement() # output resultant displacement field
 
     grid = np.stack([phi0,phi1,phi2],axis=3)
+    grid_i = np.stack([phi0i,phi1i,phi2i],axis=3)
 
     minc.io.save_minc_volume( args.o + '_grid_0.mnc',
         grid, src_aff, ref_fname=args.s, history=_history)
+    
+    minc.io.save_minc_volume( args.o + '_Inv_grid_0.mnc',
+        grid_i, src_aff, ref_fname=args.s, history=_history)
 
     (deformed_s,_,_,_) = lddmm.applyThisTransform(src_vol)
     minc.io.save_minc_volume( args.o + '_resampled.mnc',
@@ -125,6 +130,13 @@ def main():
     minc.io.save_minc_volume( args.o + '_J.mnc',
         jac.cpu().numpy(), src_aff,
         ref_fname=args.s, history=_history)
+
+    # calculate the jacobian 
+    inv_jac = calculate_jacobian(lddmm, phi0i, phi1i, phi2i)
+    minc.io.save_minc_volume( args.o + '_Inv_J.mnc',
+        jac.cpu().numpy(), src_aff,
+        ref_fname=args.s, history=_history)
+
 
     
 # execute script

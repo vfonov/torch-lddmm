@@ -121,7 +121,7 @@ def main():
         grid_i, src_aff, ref_fname=args.s, history=_history)
 
     (deformed_s,_,_,_) = lddmm.applyThisTransform(src_vol)
-    minc.io.save_minc_volume( args.o + '_resampled.mnc',
+    minc.io.save_minc_volume( args.o + '_resampled_src.mnc',
         deformed_s[-1].cpu().numpy(), src_aff, 
         ref_fname=args.s, history=_history)
     
@@ -134,7 +134,7 @@ def main():
     # calculate the jacobian 
     inv_jac = calculate_jacobian(lddmm, phi0i, phi1i, phi2i)
     minc.io.save_minc_volume( args.o + '_Inv_J.mnc',
-        jac.cpu().numpy(), src_aff,
+        inv_jac.cpu().numpy(), src_aff,
         ref_fname=args.s, history=_history)
 
 

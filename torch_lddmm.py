@@ -201,7 +201,7 @@ class LDDMM:
             print('\n')
         
         if template is None:
-            print('WARNING: template file name is not set. Use LDDMM.setParams(\'template\',filename\/array).\n')
+            print('WARNING: template file name is not set. Use LDDMM.setParams(\'template\',filename/array).\n')
         elif isinstance(template,np.ndarray) and self.params['verbose'] == 1:
             print('>    template        = numpy.ndarray\n')
         elif isinstance(template,list) and isinstance(template[0],np.ndarray) and self.params['verbose'] == 1:
@@ -215,7 +215,7 @@ class LDDMM:
             print('>    template        = ' + str(template) + '\n')
         
         if target is None:
-            print('WARNING: target file name is not set. Use LDDMM.setParams(\'target\',filename\/array).\n')
+            print('WARNING: target file name is not set. Use LDDMM.setParams(\'target\',filename/array).\n')
         elif isinstance(target,np.ndarray) and self.params['verbose'] == 1:
             print('>    target          = numpy.ndarray\n')
         elif isinstance(target,list) and isinstance(target[0],np.ndarray) and self.params['verbose'] == 1:
@@ -1160,13 +1160,12 @@ class LDDMM:
         phi1_gpu = self.X1.clone()
         phi2_gpu = self.X2.clone()
         # TODO: evaluate memory vs speed for precomputing Xs, Ys, Zs
-        for t in range(self.params['nt']):
+        for t in range(self.params['nt']-1,-1,-1):
             # update phi using method of characteristics (note "+" because we are integrating backward)
             if self.params['do_lddmm'] == 1 or hasattr(self,'vt0'):
                 phi0_gpu = torch.squeeze(grid_sample((phi0_gpu-self.X0).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X0+self.vt0[t]*self.dt)
                 phi1_gpu = torch.squeeze(grid_sample((phi1_gpu-self.X1).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X1+self.vt1[t]*self.dt)
                 phi2_gpu = torch.squeeze(grid_sample((phi2_gpu-self.X2).unsqueeze(0).unsqueeze(0),torch.stack(((self.X2+self.vt2[t]*self.dt)/(self.nx[2]*self.dx[2]-self.dx[2])*2,(self.X1+self.vt1[t]*self.dt)/(self.nx[1]*self.dx[1]-self.dx[1])*2,(self.X0+self.vt0[t]*self.dt)/(self.nx[0]*self.dx[0]-self.dx[0])*2),dim=3).unsqueeze(0),padding_mode='border')) + (self.X2+self.vt2[t]*self.dt)
-
 
             if t == self.params['nt']-1 and (self.params['do_affine'] > 0  or (hasattr(self, 'affineA') and not torch.all(torch.eq(self.affineA,torch.tensor(np.eye(4)).type(self.params['dtype']).to(device=self.params['cuda']))) ) ): # run this if do_affine == 1 or affineA exists and isn't identity
                 phi0_gpu,phi1_gpu,phi2_gpu = self.forwardDeformationAffineVectorized(self.affineA,phi0_gpu,phi1_gpu,phi2_gpu)
